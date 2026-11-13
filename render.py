@@ -11,7 +11,12 @@ import numpy as np
 from PIL import Image
 
 S = 1024
-YS, XS = np.mgrid[0:S, 0:S].astype(np.float64) + 0.5
+BUBBLE = "--bubble" in sys.argv
+PY, PX = np.mgrid[0:S, 0:S].astype(np.float64) + 0.5
+# with the speech bubble the scene shrinks about its bottom centre to free the top
+SCALE = 0.86 if BUBBLE else 1.0
+XS = 512 + (PX - 512) / SCALE
+YS = 1010 + (PY - 1010) / SCALE
 
 
 def hexc(h):
@@ -154,6 +159,11 @@ def draw():
     t = np.clip(r, 0, 1)[..., None] ** 1.2
     paint(c_in * (1 - t) + c_out * t, np.ones((S, S)))
 
+    # soft bokeh circles
+    for (bx_, by_, br, ba) in [(170, 330, 90, 0.18), (860, 470, 110, 0.15), (230, 880, 70, 0.14),
+                               (800, 850, 80, 0.12), (700, 90, 60, 0.16)]:
+        paint(hexc("#FFFFFF"), np.clip(0.5 - circle(bx_, by_, br) / 18, 0, 1) * ba)
+
     # a few sparkles and floating hearts
     for (sx, sy, sr) in [(150, 190, 30), (890, 640, 26), (120, 700, 18)]:
         dd = np.minimum(ellipse(sx, sy, sr, sr * 0.22), ellipse(sx, sy, sr * 0.22, sr))
@@ -275,6 +285,11 @@ def draw():
                 circle(HX, HY + 116, 10, hx, hy), 5)
     paint(pink, cov(nose))
     paint(line, cov(segment(HX, HY + 132, HX, HY + 144, 3.2, hx, hy)))
+    # small open mouth with a tongue under the w
+    mouth = np.maximum(ellipse(HX, HY + 150, 21, 26, hx, hy), (HY + 150) - hy)
+    paint(line, cov(mouth - 3))
+    paint(hexc("#A8445A"), cov(mouth))
+    paint(hexc("#FF8FA6"), cov(np.maximum(circle(HX, HY + 178, 15, hx, hy), mouth)))
     for sgn in (-1, 1):
         paint(line, cov(arc(HX + sgn * 18, HY + 144, 18, 0.0, math.pi, 3.4, hx, hy)))
 
@@ -295,8 +310,39 @@ def draw():
     paint(hexc("#FFC93C"), cov(circle(FX, FY, 13, hx, hy)))
 
 
+def draw_bubble():
+    """A speech bubble from the kitten, in pixel coordinates."""
+    from PIL import ImageDraw, ImageFont
+    x0, y0, x1, y1 = 52, 26, 600, 168
+    box = np.maximum(np.abs(PX - (x0 + x1) / 2) - ((x1 - x0) / 2 - 40), np.abs(PY - (y0 + y1) / 2) - ((y1 - y0) / 2 - 40))
+    rr = np.hypot(np.maximum(np.abs(PX - (x0 + x1) / 2) - ((x1 - x0) / 2 - 40), 0),
+                  np.maximum(np.abs(PY - (y0 + y1) / 2) - ((y1 - y0) / 2 - 40), 0))
+    rbox = np.where(box > 0, rr, box) - 40
+    tail = triangle((390, 150), (470, 150), (452, 215), PX, PY) - 4
+    bub = smin(rbox, tail, 8)
+    paint(hexc("#6E4A48"), cov(bub - 5))
+    paint(hexc("#FFFFFF"), cov(bub))
+    layer = Image.new("L", (S, S), 0)
+    dr = ImageDraw.Draw(layer)
+    f1 = ImageFont.truetype("C:/Windows/Fonts/seguibl.ttf", 46)
+    f2 = ImageFont.truetype("C:/Windows/Fonts/seguibl.ttf", 40)
+    t1, t2 = "We're best friends!", "Pick us?"
+    w1 = dr.textlength(t1, font=f1)
+    w2 = dr.textlength(t2, font=f2)
+    cx = (x0 + x1) / 2
+    dr.text((cx - w1 / 2, 40), t1, font=f1, fill=255)
+    dr.text((cx - (w2 + 46) / 2, 100), t2, font=f2, fill=255)
+    a = np.asarray(layer, dtype=np.float64) / 255
+    paint(hexc("#5A3A44"), a)
+    hd = heart(cx + (w2 + 46) / 2 - 18, 126, 34, PX, PY)
+    paint(hexc("#FF6F98"), cov(hd))
+
+
 draw()
+if BUBBLE:
+    draw_bubble()
 out = Image.fromarray((np.clip(img, 0, 1) * 255 + 0.5).astype(np.uint8), "RGB")
-path = sys.argv[1] if len(sys.argv) > 1 else "picture.png"
+args = [a for a in sys.argv[1:] if not a.startswith("--")]
+path = args[0] if args else "picture.png"
 out.save(path, optimize=True)
 print(path)
