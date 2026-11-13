@@ -223,6 +223,14 @@ for s in (-1, 1):
     lower = fy < -0.42
     a = (np.clip((0.016 - md) / 0.006, 0, 1) * lower * front)[:, None]
     base = base * (1 - a) + srgb_to_lin(hexc("#5A3A3A")) * a
+# a small open smile with a tongue under the w
+mr = np.hypot(fx / 0.062, (fy + 0.47) / 0.085)
+mouth = (mr < 1) & (fy < -0.475) & front
+rim_m = (mr < 1.18) & (fy < -0.465) & front & ~mouth
+tongue = mouth & (np.hypot(fx, fy + 0.565) < 0.045)
+base = np.where(rim_m[:, None], srgb_to_lin(hexc("#5A3A3A"))[None], base)
+base = np.where(mouth[:, None], srgb_to_lin(hexc("#9E3E52"))[None], base)
+base = np.where(tongue[:, None], srgb_to_lin(hexc("#FF8FA6"))[None], base)
 for sx in (-0.17, 0, 0.17):
     sd = np.hypot(np.maximum(np.abs(fy - 0.78) - 0.12, 0), fx - sx * (1 + 0.15 * (fy - 0.78)))
     a = (np.clip((0.05 - sd) / 0.01, 0, 1) * front)[:, None] * 0.95
@@ -318,6 +326,55 @@ img[idx] = col
 img = img / (1 + img * 0.12)
 img = np.power(np.clip(img, 0, 1), 1 / 2.2)
 img = img.reshape(N, N, 3)
+
+
+def fluff(img, which, behind, count_scale, length, seed):
+    """Short hair strands along the silhouette of material `which` where it meets `behind`."""
+    from PIL import ImageDraw
+    matfull = np.full(N * N, -1, dtype=np.int16)
+    matfull[idx] = mat
+    matfull = matfull.reshape(N, N)
+    nfull = np.zeros((N * N, 2), dtype=F)
+    nfull[idx] = nrm[:, :2]
+    nfull = nfull.reshape(N, N, 2)
+    m = matfull == which
+    sep = 2 * SS
+    edge = np.zeros_like(m)
+    for dy, dx in ((sep, 0), (-sep, 0), (0, sep), (0, -sep)):
+        nb = np.roll(np.roll(matfull, dy, axis=0), dx, axis=1)
+        edge |= m & np.isin(nb, behind)
+    ys_, xs_ = np.nonzero(edge)
+    rng = np.random.default_rng(seed)
+    keep = rng.random(len(ys_)) < count_scale
+    ys_, xs_ = ys_[keep], xs_[keep]
+    order = rng.permutation(len(ys_))
+    ys_, xs_ = ys_[order], xs_[order]
+    base_img = Image.fromarray((img * 255 + 0.5).astype(np.uint8), "RGB")
+    layer = Image.new("RGBA", (N, N), (0, 0, 0, 0))
+    dr = ImageDraw.Draw(layer)
+    for y, x in zip(ys_, xs_):
+        nx, ny = nfull[y, x]
+        ln = math.hypot(nx, ny)
+        if ln < 0.2:
+            continue
+        dx, dy = nx / ln, -ny / ln
+        ang = rng.normal(0, 0.35)
+        ca, sa = math.cos(ang), math.sin(ang)
+        dx, dy = dx * ca - dy * sa, dx * sa + dy * ca
+        L = length * SS * (0.5 + rng.random())
+        x0, y0 = x - dx * 3 * SS, y - dy * 3 * SS
+        c = img[min(N - 1, max(0, int(y - dy * 4 * SS))), min(N - 1, max(0, int(x - dx * 4 * SS)))]
+        rgb = tuple(int(min(255, v * 255 * 1.02)) for v in c)
+        dr.line([(x0, y0), (x0 + dx * L * 0.6, y0 + dy * L * 0.6)], fill=rgb + (235,), width=max(1, SS))
+        dr.line([(x0 + dx * L * 0.6, y0 + dy * L * 0.6), (x0 + dx * L, y0 + dy * L)], fill=rgb + (120,), width=1)
+    base_img.paste(layer, (0, 0), layer)
+    return np.asarray(base_img, dtype=F) / 255
+
+
+if "--nofluff" not in sys.argv:
+    misses = [-1, M_GROUND]
+    img = fluff(img, M_FUR, misses, 0.55, 9, 11)
+    img = fluff(img, M_CHICK, misses + [M_FUR, M_SCARF], 0.6, 7, 12)
 out = Image.fromarray((img * 255 + 0.5).astype(np.uint8), "RGB")
 if SS > 1:
     out = out.resize((OUT, OUT), Image.LANCZOS)
