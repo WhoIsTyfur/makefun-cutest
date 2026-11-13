@@ -1,4 +1,4 @@
-"""Offline 3D renderer for the entry picture (dev tool: numpy + Pillow).
+﻿"""Offline 3D renderer for the entry picture (dev tool: numpy + Pillow).
 
 Raymarches a signed-distance scene of a chubby kitten hugging a baby chick,
 with soft shadows, ambient occlusion and wrap lighting for a soft toy look,
@@ -60,7 +60,7 @@ HEAD_C = v3(0, 0.62, 0)
 TILT = 8.0  # head tilt, degrees
 
 # materials
-M_FUR, M_INEAR, M_EYE, M_NOSE, M_CHICK, M_BEAK, M_SCARF, M_GROUND, M_CEYE = range(9)
+M_FUR, M_INEAR, M_EYE, M_NOSE, M_CHICK, M_BEAK, M_SCARF, M_GROUND, M_CEYE, M_PETAL, M_FCEN = range(11)
 
 
 def head_frame(p):
@@ -86,14 +86,23 @@ def scene(p, want_mat=False):
     paws = np.minimum(ell(p, v3(-0.5, -0.86, -0.92), v3(0.26, 0.28, 0.26)),
                       ell(p, v3(0.5, -0.86, -0.92), v3(0.26, 0.28, 0.26)))
     fur = np.minimum(fur, paws)
+    # a small daisy at the base of the right ear
+    fc = HEAD_C + v3(0.6, 0.6, -0.68)
+    petals = np.full(len(p), 1e9, dtype=F)
+    for i in range(5):
+        a = i * 2 * math.pi / 5 + 0.3
+        petals = np.minimum(petals, ell(hp, fc + v3(0.13 * math.cos(a), 0.13 * math.sin(a), 0.02),
+                                        v3(0.09, 0.09, 0.045)))
+    fcen = sph(hp, fc + v3(0, 0, -0.035), 0.065)
     eyes = np.minimum(ell(hp, HEAD_C + v3(-0.47, -0.06, -0.84), v3(0.31, 0.38, 0.16)),
                       ell(hp, HEAD_C + v3(0.47, -0.06, -0.84), v3(0.31, 0.38, 0.16)))
     nose = ell(hp, HEAD_C + v3(0, -0.36, -0.99), v3(0.075, 0.05, 0.05))
     chick = sph(p, v3(0, -0.66, -0.9), 0.47)
     beak = ell(p, v3(0, -0.66, -1.38), v3(0.085, 0.06, 0.08))
     ceyes = np.minimum(sph(p, v3(-0.17, -0.55, -1.3), 0.06), sph(p, v3(0.17, -0.55, -1.3), 0.06))
-    tuft = np.minimum(capsule(p, v3(0, -0.22, -0.92), v3(-0.05, -0.02, -0.95), 0.045),
-                      capsule(p, v3(0, -0.22, -0.92), v3(0.09, -0.05, -0.93), 0.04))
+    tuft = np.minimum(np.minimum(capsule(p, v3(0, -0.2, -0.92), v3(-0.08, -0.09, -0.95), 0.035),
+                                 capsule(p, v3(0, -0.2, -0.92), v3(0.0, -0.06, -0.95), 0.038)),
+                      capsule(p, v3(0, -0.2, -0.92), v3(0.08, -0.1, -0.94), 0.035))
     chick = smin(chick, tuft, 0.05)
     # scarf: a flattened torus around the neck
     q = p - v3(0, -0.12, 0.05)
@@ -101,7 +110,7 @@ def scene(p, want_mat=False):
     scarf = np.sqrt((rxz - 0.84) ** 2 * 0.8 + (q[:, 1] / 1.0) ** 2) - 0.16
     ground = p[:, 1] + 1.74
 
-    parts = [fur, inner, eyes, nose, chick, beak, scarf, ground, ceyes]
+    parts = [fur, inner, eyes, nose, chick, beak, scarf, ground, ceyes, petals, fcen]
     d = parts[0]
     for x in parts[1:]:
         d = np.minimum(d, x)
@@ -112,8 +121,8 @@ def scene(p, want_mat=False):
 
 
 # ------------------------------------------------------------------ camera
-CAM = v3(0, 0.08, -9.0)
-FOCAL = 4.15  # larger = narrower field of view
+CAM = v3(0, 0.4, -9.0)
+FOCAL = 4.95  # larger = narrower field of view
 ys, xs = np.mgrid[0:N, 0:N].astype(F)
 u = ((xs + 0.5) / N - 0.5) * 2
 v = -((ys + 0.5) / N - 0.5) * 2
@@ -196,6 +205,7 @@ base = np.zeros((len(ph), 3), dtype=F)
 pal = {
     M_FUR: "#FFEAD6", M_INEAR: "#FFB3C6", M_EYE: "#1A2250", M_NOSE: "#FF8FAB", M_CHICK: "#FFD84A",
     M_BEAK: "#FF8A3D", M_SCARF: "#8FE3C8", M_GROUND: "#F7C9D8", M_CEYE: "#20161A",
+    M_PETAL: "#FFD3E2", M_FCEN: "#FFC93C",
 }
 for m, c in pal.items():
     base[mat == m] = srgb_to_lin(hexc(c))
@@ -243,6 +253,22 @@ for s in (-1, 1):
     cl = np.hypot(ph[:, 0] - (s * 0.17 - 0.022), ph[:, 1] - (-0.53)) < 0.022
     base = np.where((cl & (mat == M_CEYE))[:, None], F(1.0), base)
 
+# toe lines on the feet
+for sx in (-0.5, 0.5):
+    for k in (-1, 1):
+        td = np.abs(ph[:, 0] - (sx + k * 0.1))
+        on = (td < 0.014) & (ph[:, 1] > -1.6) & (ph[:, 1] < -1.47) & (ph[:, 2] < -0.6) & (mat == M_FUR)
+        base = np.where(on[:, None], srgb_to_lin(hexc("#8A6460"))[None], base)
+
+# plush fur: a little noise in the normals
+furm = mat == M_FUR
+q = ph * 38.0
+nz = np.stack([np.sin(q[:, 1] * 1.3 + np.sin(q[:, 2] * 0.7)) * np.cos(q[:, 0] * 0.9),
+               np.sin(q[:, 2] * 1.1 + np.sin(q[:, 0] * 0.8)) * np.cos(q[:, 1] * 1.2),
+               np.sin(q[:, 0] * 1.2 + np.sin(q[:, 1] * 0.9)) * np.cos(q[:, 2] * 1.0)], axis=1)
+nrm = np.where(furm[:, None], nrm + 0.025 * nz, nrm)
+nrm /= np.linalg.norm(nrm, axis=1, keepdims=True)
+
 # ------------------------------------------------------------------ shading
 col = np.zeros_like(base)
 wrap = np.where(np.isin(mat, [M_FUR, M_CHICK, M_SCARF, M_INEAR]), 0.45, 0.1).astype(F)
@@ -260,6 +286,10 @@ col = base * (key_col * diff[:, None] + fill_col * fill[:, None] + sky_col * (sk
 sss = (np.clip(wrap - np.abs(ndl), 0, 1) * (wrap > 0.2))[:, None] * np.array([0.35, 0.12, 0.08], dtype=F)
 col += sss * base * 0.9
 col += (rim * ao)[:, None] * np.array([1.0, 0.9, 0.95], dtype=F) * 0.25 * (mat != M_GROUND)[:, None]
+# velvet sheen on the fur
+vdn = np.clip(np.sum(nrm * -rd[idx], axis=1), 0, 1)
+sheen = (1 - vdn) ** 2 * furm
+col += (sheen * ao)[:, None] * np.array([1.0, 0.85, 0.8], dtype=F) * 0.22
 # specular
 hv = KEY - rd[idx]
 hv /= np.linalg.norm(hv, axis=1, keepdims=True)
@@ -275,6 +305,13 @@ gm = mat == M_GROUND
 gsh = (sh * ao)[gm]
 col[gm] = bg[idx[gm]] * (0.62 + 0.38 * gsh[:, None])
 
+# soft bokeh in the background
+px = (u.reshape(-1) + 1) / 2
+py = 1 - vy
+for (bx, by, br, ba) in [(0.13, 0.3, 0.09, 0.22), (0.88, 0.42, 0.1, 0.2), (0.1, 0.72, 0.06, 0.18),
+                         (0.9, 0.12, 0.06, 0.2), (0.82, 0.75, 0.07, 0.16), (0.2, 0.08, 0.05, 0.2)]:
+    dd = np.hypot(px - bx, py - by) - br
+    bg = bg + (np.clip(0.5 - dd / 0.012, 0, 1) * ba)[:, None] * (1.0 - bg)
 img = bg.copy()
 img[idx] = col
 # tone map and gamma
