@@ -28,5 +28,5 @@ how well it reads small). Entries rank by win rate over those games.
 ```sh
 python main.py            # writes /output/entry.png
 pip install numpy pillow  # only needed to redraw the picture
-python render3d.py picture.png   # about 2-3 minutes
+python render3d.py picture.png --bg=blue   # about 2-3 minutes; --bg=pink for the pink version
 ```
