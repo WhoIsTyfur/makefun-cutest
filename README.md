@@ -8,10 +8,13 @@ Entry for make.fun's [Make the cutest picture](https://make.fun/bounty/cutest-pi
 a chubby cream kitten with big glossy blue eyes and a little head tilt, hugging a baby
 chick, on a soft pastel background. The same bytes come out on every run.
 
-The picture itself is drawn by `render.py`, an offline renderer built on signed distance
-fields: every shape (head, ears, eyes, paws, the chick) is a distance field, edges are
-anti-aliased analytically, and each body part gets soft dome shading from its own
-distance field. Its output is committed as `picture.png`, which `main.py` copies.
+The picture itself is made by `render3d.py`, an offline raymarcher over a signed-distance
+scene: the kitten's head, ears, body, paws and feet are ellipsoids joined with smooth
+unions, the chick, scarf and eyes are their own parts, and each pixel is lit with a warm
+wrapped key light, soft shadows, ambient occlusion, a sky fill and a rim, at 2x2
+supersampling. Face details (iris, highlights, blush, mouth, stripes) are painted in the
+head's own frame. Its output is committed as `picture.png`, which `main.py` copies.
+`render.py` is the earlier flat 2D version of the same picture.
 
 ## How it is scored
 
@@ -25,5 +28,5 @@ how well it reads small). Entries rank by win rate over those games.
 ```sh
 python main.py            # writes /output/entry.png
 pip install numpy pillow  # only needed to redraw the picture
-python render.py picture.png
+python render3d.py picture.png   # about 2-3 minutes
 ```
