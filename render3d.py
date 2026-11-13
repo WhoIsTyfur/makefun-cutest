@@ -83,8 +83,8 @@ def scene(p, want_mat=False):
     feet = np.minimum(ell(p, v3(-0.5, -1.58, -0.42), v3(0.36, 0.2, 0.42)),
                       ell(p, v3(0.5, -1.58, -0.42), v3(0.36, 0.2, 0.42)))
     fur = smin(fur, feet, 0.08)
-    paws = np.minimum(ell(p, v3(-0.47, -0.66, -0.96), v3(0.25, 0.27, 0.25)),
-                      ell(p, v3(0.47, -0.66, -0.96), v3(0.25, 0.27, 0.25)))
+    paws = np.minimum(ell(p, v3(-0.5, -0.86, -0.92), v3(0.26, 0.28, 0.26)),
+                      ell(p, v3(0.5, -0.86, -0.92), v3(0.26, 0.28, 0.26)))
     fur = np.minimum(fur, paws)
     # a small daisy at the base of the right ear
     fc = HEAD_C + v3(0.6, 0.6, -0.68)
@@ -97,12 +97,12 @@ def scene(p, want_mat=False):
     eyes = np.minimum(ell(hp, HEAD_C + v3(-0.47, -0.06, -0.84), v3(0.31, 0.38, 0.16)),
                       ell(hp, HEAD_C + v3(0.47, -0.06, -0.84), v3(0.31, 0.38, 0.16)))
     nose = ell(hp, HEAD_C + v3(0, -0.36, -0.99), v3(0.075, 0.05, 0.05))
-    chick = sph(p, v3(0, -0.54, -0.9), 0.47)
-    beak = ell(p, v3(0, -0.54, -1.38), v3(0.085, 0.06, 0.08))
-    ceyes = np.minimum(sph(p, v3(-0.17, -0.43, -1.3), 0.06), sph(p, v3(0.17, -0.43, -1.3), 0.06))
-    tuft = np.minimum(np.minimum(capsule(p, v3(0, -0.1, -0.92), v3(-0.07, -0.03, -0.95), 0.033),
-                                 capsule(p, v3(0, -0.1, -0.92), v3(0.0, 0.0, -0.95), 0.036)),
-                      capsule(p, v3(0, -0.1, -0.92), v3(0.07, -0.04, -0.94), 0.033))
+    chick = sph(p, v3(0, -0.66, -0.9), 0.47)
+    beak = ell(p, v3(0, -0.66, -1.38), v3(0.085, 0.06, 0.08))
+    ceyes = np.minimum(sph(p, v3(-0.17, -0.55, -1.3), 0.06), sph(p, v3(0.17, -0.55, -1.3), 0.06))
+    tuft = np.minimum(np.minimum(capsule(p, v3(0, -0.2, -0.92), v3(-0.08, -0.09, -0.95), 0.035),
+                                 capsule(p, v3(0, -0.2, -0.92), v3(0.0, -0.06, -0.95), 0.038)),
+                      capsule(p, v3(0, -0.2, -0.92), v3(0.08, -0.1, -0.94), 0.035))
     chick = smin(chick, tuft, 0.05)
     # scarf: a flattened torus around the neck
     q = p - v3(0, -0.12, 0.05)
@@ -121,8 +121,8 @@ def scene(p, want_mat=False):
 
 
 # ------------------------------------------------------------------ camera
-CAM = v3(0, 0.5, -9.0)
-FOCAL = 5.5  # larger = narrower field of view
+CAM = v3(0, 0.4, -9.0)
+FOCAL = 4.95  # larger = narrower field of view
 ys, xs = np.mgrid[0:N, 0:N].astype(F)
 u = ((xs + 0.5) / N - 0.5) * 2
 v = -((ys + 0.5) / N - 0.5) * 2
@@ -223,16 +223,6 @@ for s in (-1, 1):
     lower = fy < -0.42
     a = (np.clip((0.016 - md) / 0.006, 0, 1) * lower * front)[:, None]
     base = base * (1 - a) + srgb_to_lin(hexc("#5A3A3A")) * a
-# ginger ear tips: warm colour toward the top outer corners of the head
-furh = mat == M_FUR
-g = np.clip((fy - 0.55) / 0.25, 0, 1) * np.clip((np.abs(fx) - 0.4) / 0.2, 0, 1) * furh
-base = base * (1 - 0.8 * g[:, None]) + srgb_to_lin(hexc("#E9893A"))[None] * (0.8 * g[:, None])
-# toe lines on the paws hugging the chick
-for sx in (-0.47, 0.47):
-    for k in (-1, 1):
-        on = (np.abs(ph[:, 0] - (sx + k * 0.065)) < 0.011) & (ph[:, 1] > -0.9) & (ph[:, 1] < -0.8) \
-             & (ph[:, 2] < -1.0) & furh
-        base = np.where(on[:, None], srgb_to_lin(hexc("#8A6460"))[None], base)
 # a small open smile with a tongue under the w
 mr = np.hypot(fx / 0.062, (fy + 0.47) / 0.085)
 mouth = (mr < 1) & (fy < -0.475) & front
@@ -265,10 +255,10 @@ for s in (-1, 1):
 
 # chick: blush on its cheeks and a catchlight in each eye
 for s in (-1, 1):
-    bd = ((ph[:, 0] - s * 0.29) / 0.09) ** 2 + ((ph[:, 1] + 0.58) / 0.055) ** 2
+    bd = ((ph[:, 0] - s * 0.29) / 0.09) ** 2 + ((ph[:, 1] + 0.7) / 0.055) ** 2
     a = (np.clip(1.4 - bd, 0, 1) * 0.7 * (mat == M_CHICK))[:, None]
     base = base * (1 - a) + srgb_to_lin(hexc("#FF8FA3")) * a
-    cl = np.hypot(ph[:, 0] - (s * 0.17 - 0.022), ph[:, 1] - (-0.41)) < 0.022
+    cl = np.hypot(ph[:, 0] - (s * 0.17 - 0.022), ph[:, 1] - (-0.53)) < 0.022
     base = np.where((cl & (mat == M_CEYE))[:, None], F(1.0), base)
 
 # toe lines on the feet
@@ -316,7 +306,9 @@ ks = np.where(np.isin(mat, [M_EYE, M_CEYE, M_NOSE]), 1.6, 0.06).astype(F)
 col += (np.clip(np.sum(nrm * hv, axis=1), 0, 1) ** gloss * ks * sh)[:, None]
 
 # ground: fade into the background
-bg_top, bg_bot = srgb_to_lin(hexc("#FFF0F5")), srgb_to_lin(hexc("#F7BCD2"))
+BG = {"pink": ("#FFF0F5", "#F7BCD2"), "blue": ("#EEF7FF", "#B9D8F2")}
+bgname = next((a[5:] for a in sys.argv if a.startswith("--bg=")), "pink")
+bg_top, bg_bot = srgb_to_lin(hexc(BG[bgname][0])), srgb_to_lin(hexc(BG[bgname][1]))
 vy = (v.reshape(-1) + 1) / 2
 bg = bg_bot[None] * (1 - vy[:, None]) + bg_top[None] * vy[:, None]
 gm = mat == M_GROUND
